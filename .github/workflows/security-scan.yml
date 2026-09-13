@@ -1,0 +1,102 @@
+name: Security Scan
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  malware-scan:
+    name: Malware Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav clamav-daemon
+
+      - name: Update ClamAV definitions
+        run: |
+          sudo freshclam
+
+      - name: Scan repository
+        run: |
+          set -euo pipefail
+
+          clamscan \
+            --recursive \
+            --infected \
+            --exclude-dir='^./.git$' \
+            --exclude-dir='^./build$' \
+            .
+
+      - name: Detect suspicious executable files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          suspicious=0
+
+          while IFS= read -r -d '' file; do
+            echo "::warning file=$file::Suspicious executable file found: $file"
+            suspicious=1
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -path './build' -prune -o \
+              -type f \
+              \( \
+                -iname '*.exe' -o \
+                -iname '*.dll' -o \
+                -iname '*.scr' -o \
+                -iname '*.com' -o \
+                -iname '*.bat' -o \
+                -iname '*.cmd' -o \
+                -iname '*.ps1' \
+              \) \
+              -print0
+          )
+
+          if [ "$suspicious" -ne 0 ]; then
+            echo "Suspicious executable files were detected."
+            exit 1
+          fi
+
+      - name: Validate PDF files
+        run: |
+          set -euo pipefail
+
+          sudo apt-get install -y qpdf file
+
+          pdf_count=0
+
+          while IFS= read -r -d '' pdf; do
+            pdf_count=$((pdf_count + 1))
+
+            echo "Checking $pdf"
+
+            file "$pdf" | grep -Ei 'PDF document'
+            qpdf --check "$pdf"
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -iname '*.pdf' \
+              -print0
+          )
+
+          echo "Checked $pdf_count PDF(s)."
