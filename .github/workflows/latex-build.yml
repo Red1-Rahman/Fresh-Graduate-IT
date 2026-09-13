@@ -1,0 +1,289 @@
+name: LaTeX Build
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: latex-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Discover LaTeX documents
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      documents: ${{ steps.documents.outputs.documents }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Discover entrypoint documents
+        id: documents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import pathlib
+
+          ignored = {
+              ".git",
+              ".github",
+              "build",
+              "dist",
+          }
+
+          documents = []
+
+          for path in pathlib.Path(".").rglob("*.tex"):
+              if any(part in ignored for part in path.parts):
+                  continue
+
+              # Only compile likely entrypoints.
+              # Section/include files are not entrypoints.
+              text = path.read_text(errors="ignore")
+
+              if (
+                  "\\documentclass" in text
+                  and "\\begin{document}" in text
+              ):
+                  documents.append(path.as_posix())
+
+          documents.sort()
+
+          print("Discovered:")
+          for document in documents:
+              print(f"  {document}")
+
+          print(json.dumps(documents))
+          with open("${GITHUB_OUTPUT}", "a") as output:
+              output.write(
+                  "documents="
+                  + json.dumps(json.dumps(documents))
+                  + "\n"
+              )
+          PY
+
+  build:
+    name: Build
+    needs: discover
+    if: needs.discover.outputs.documents != '[]'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        compiler:
+          - pdflatex
+          - xelatex
+          - lualatex
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install TeX Live
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            texlive-full \
+            qpdf
+
+      - name: Install MiKTeX
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install miktex -y --no-progress
+          choco install qpdf -y --no-progress
+
+      - name: Install TeX Live
+        if: runner.os == 'macOS'
+        run: |
+          brew install --cask mactex
+          brew install qpdf
+
+      - name: Refresh TeX package database
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          initexmf --admin --update-fndb
+          initexmf --update-fndb
+
+      - name: Configure automatic package installation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          initexmf --admin --set-config-value [MPM]AutoInstall=1
+          initexmf --set-config-value [MPM]AutoInstall=1
+
+      - name: Create build directory
+        shell: bash
+        run: |
+          mkdir -p build
+
+      - name: Compile LaTeX documents
+        shell: bash
+        env:
+          DOCUMENTS_JSON: ${{ needs.discover.outputs.documents }}
+          COMPILER: ${{ matrix.compiler }}
+        run: |
+          set -uo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          import pathlib
+          import shutil
+          import subprocess
+          import sys
+
+          documents = json.loads(os.environ["DOCUMENTS_JSON"])
+          compiler = os.environ["COMPILER"]
+
+          failures = 0
+
+          for document in documents:
+              source = pathlib.Path(document)
+
+              relative = source.with_suffix("")
+              output_dir = pathlib.Path("build") / relative.parent
+              output_dir.mkdir(parents=True, exist_ok=True)
+
+              print()
+              print("=" * 80)
+              print(f"Building: {document}")
+              print(f"Compiler: {compiler}")
+              print("=" * 80)
+
+              command = [
+                  compiler,
+                  "-interaction=nonstopmode",
+                  "-halt-on-error",
+                  "-file-line-error",
+                  "-synctex=0",
+                  "-output-directory",
+                  str(output_dir),
+                  str(source),
+              ]
+
+              log_file = output_dir / f"{source.stem}.log"
+
+              result = subprocess.run(
+                  command,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+              )
+
+              log_file.write_text(result.stdout, errors="replace")
+              print(result.stdout)
+
+              if result.returncode != 0:
+                  print(f"ERROR: {document} failed to compile.")
+                  failures += 1
+                  continue
+
+              pdf = output_dir / f"{source.stem}.pdf"
+
+              if not pdf.exists():
+                  print(f"ERROR: Expected PDF was not produced: {pdf}")
+                  failures += 1
+                  continue
+
+              # Treat overfull boxes as build failures.
+              overfull = [
+                  line
+                  for line in result.stdout.splitlines()
+                  if "Overfull \\hbox" in line
+                  or "Overfull \\vbox" in line
+              ]
+
+              if overfull:
+                  print()
+                  print("ERROR: Overfull boxes detected:")
+                  for line in overfull:
+                      print(line)
+                  failures += 1
+
+              # Underfull boxes are warnings initially.
+              underfull = [
+                  line
+                  for line in result.stdout.splitlines()
+                  if "Underfull \\hbox" in line
+                  or "Underfull \\vbox" in line
+              ]
+
+              if underfull:
+                  print()
+                  print("WARNING: Underfull boxes detected:")
+                  for line in underfull:
+                      print(line)
+
+              # Detect common fatal LaTeX errors even if the engine
+              # somehow returns success.
+              fatal_patterns = [
+                  "Emergency stop",
+                  "Fatal error",
+                  "Undefined control sequence",
+                  "Runaway argument",
+                  "LaTeX Error:",
+                  "! Missing",
+              ]
+
+              for pattern in fatal_patterns:
+                  if pattern in result.stdout:
+                      print(
+                          f"ERROR: Fatal LaTeX diagnostic detected: {pattern}"
+                      )
+                      failures += 1
+                      break
+
+          sys.exit(1 if failures else 0)
+          PY
+
+      - name: Validate generated PDFs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pdf_count=0
+
+          while IFS= read -r -d '' pdf; do
+            pdf_count=$((pdf_count + 1))
+
+            echo "Validating: $pdf"
+
+            test -s "$pdf"
+
+            qpdf --check "$pdf"
+
+            file "$pdf" | grep -Ei 'PDF document'
+          done < <(find build -type f -name '*.pdf' -print0)
+
+          if [ "$pdf_count" -eq 0 ]; then
+            echo "ERROR: No PDFs were generated."
+            exit 1
+          fi
+
+          echo "Validated $pdf_count PDF(s)."
