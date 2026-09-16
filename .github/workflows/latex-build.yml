@@ -14,6 +14,7 @@ jobs:
   discover:
     name: Discover LaTeX documents
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
 
@@ -49,8 +50,6 @@ jobs:
               if any(part in ignored for part in path.parts):
                   continue
 
-              # Only compile likely entrypoints.
-              # Section/include files are not entrypoints.
               text = path.read_text(errors="ignore")
 
               if (
@@ -61,15 +60,21 @@ jobs:
 
           documents.sort()
 
-          print("Discovered:")
+          print("Discovered LaTeX entrypoints:")
+
           for document in documents:
               print(f"  {document}")
 
-          print(json.dumps(documents))
-          with open("${GITHUB_OUTPUT}", "a") as output:
+          documents_json = json.dumps(documents)
+
+          with open(
+              pathlib.Path(__import__("os").environ["GITHUB_OUTPUT"]),
+              "a",
+              encoding="utf-8",
+          ) as output:
               output.write(
                   "documents="
-                  + json.dumps(json.dumps(documents))
+                  + json.dumps(documents_json)
                   + "\n"
               )
           PY
@@ -77,15 +82,18 @@ jobs:
   build:
     name: Build
     needs: discover
+
     if: needs.discover.outputs.documents != '[]'
 
     strategy:
       fail-fast: false
+
       matrix:
         os:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+
         compiler:
           - pdflatex
           - xelatex
@@ -140,6 +148,7 @@ jobs:
       - name: Create build directory
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p build
 
       - name: Compile LaTeX documents
@@ -154,7 +163,6 @@ jobs:
           import json
           import os
           import pathlib
-          import shutil
           import subprocess
           import sys
 
@@ -162,6 +170,15 @@ jobs:
           compiler = os.environ["COMPILER"]
 
           failures = 0
+
+          fatal_patterns = [
+              "Emergency stop",
+              "Fatal error",
+              "Undefined control sequence",
+              "Runaway argument",
+              "LaTeX Error:",
+              "! Missing",
+          ]
 
           for document in documents:
               source = pathlib.Path(document)
@@ -187,8 +204,6 @@ jobs:
                   str(source),
               ]
 
-              log_file = output_dir / f"{source.stem}.log"
-
               result = subprocess.run(
                   command,
                   text=True,
@@ -196,65 +211,69 @@ jobs:
                   stderr=subprocess.STDOUT,
               )
 
-              log_file.write_text(result.stdout, errors="replace")
+              log_file = output_dir / f"{source.stem}.log"
+              log_file.write_text(
+                  result.stdout,
+                  errors="replace",
+              )
+
               print(result.stdout)
 
               if result.returncode != 0:
-                  print(f"ERROR: {document} failed to compile.")
+                  print(
+                      f"ERROR: {document} failed to compile."
+                  )
                   failures += 1
                   continue
 
               pdf = output_dir / f"{source.stem}.pdf"
 
               if not pdf.exists():
-                  print(f"ERROR: Expected PDF was not produced: {pdf}")
+                  print(
+                      f"ERROR: Expected PDF was not produced: {pdf}"
+                  )
                   failures += 1
                   continue
 
-              # Treat overfull boxes as build failures.
               overfull = [
                   line
                   for line in result.stdout.splitlines()
-                  if "Overfull \\hbox" in line
-                  or "Overfull \\vbox" in line
+                  if (
+                      "Overfull \\hbox" in line
+                      or "Overfull \\vbox" in line
+                  )
               ]
 
               if overfull:
                   print()
                   print("ERROR: Overfull boxes detected:")
+
                   for line in overfull:
                       print(line)
+
                   failures += 1
 
-              # Underfull boxes are warnings initially.
               underfull = [
                   line
                   for line in result.stdout.splitlines()
-                  if "Underfull \\hbox" in line
-                  or "Underfull \\vbox" in line
+                  if (
+                      "Underfull \\hbox" in line
+                      or "Underfull \\vbox" in line
+                  )
               ]
 
               if underfull:
                   print()
                   print("WARNING: Underfull boxes detected:")
+
                   for line in underfull:
                       print(line)
-
-              # Detect common fatal LaTeX errors even if the engine
-              # somehow returns success.
-              fatal_patterns = [
-                  "Emergency stop",
-                  "Fatal error",
-                  "Undefined control sequence",
-                  "Runaway argument",
-                  "LaTeX Error:",
-                  "! Missing",
-              ]
 
               for pattern in fatal_patterns:
                   if pattern in result.stdout:
                       print(
-                          f"ERROR: Fatal LaTeX diagnostic detected: {pattern}"
+                          "ERROR: Fatal LaTeX diagnostic detected: "
+                          f"{pattern}"
                       )
                       failures += 1
                       break
@@ -279,11 +298,25 @@ jobs:
             qpdf --check "$pdf"
 
             file "$pdf" | grep -Ei 'PDF document'
-          done < <(find build -type f -name '*.pdf' -print0)
+
+          done < <(
+            find build \
+              -type f \
+              -name '*.pdf' \
+              -print0
+          )
 
           if [ "$pdf_count" -eq 0 ]; then
-            echo "ERROR: No PDFs were generated."
+            echo "::error::No PDFs were generated."
             exit 1
           fi
 
           echo "Validated $pdf_count PDF(s)."
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: latex-${{ matrix.os }}-${{ matrix.compiler }}
+          path: build/
+          if-no-files-found: error
+          retention-days: 7
