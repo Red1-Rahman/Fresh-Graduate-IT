@@ -1,0 +1,188 @@
+name: Security
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  malware:
+    name: Malware Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav
+
+      - name: Update ClamAV definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "ClamAV version:"
+          clamscan --version
+
+          echo "FreshClam version:"
+          freshclam --version
+
+          attempts=3
+
+          for attempt in $(seq 1 "$attempts"); do
+            echo "FreshClam update attempt ${attempt}/${attempts}"
+
+            if sudo freshclam --verbose; then
+              echo "ClamAV definitions updated successfully."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "FreshClam update failed; retrying in 15 seconds."
+              sleep 15
+            fi
+          done
+
+          echo "::error::Unable to update ClamAV definitions after ${attempts} attempts."
+          exit 1
+
+      - name: Scan repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          clamscan \
+            --recursive \
+            --infected \
+            --exclude-dir='^./.git$' \
+            --exclude-dir='^./build$' \
+            --exclude-dir='^./dist$' \
+            .
+
+  suspicious-files:
+    name: Suspicious Executable Files
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect suspicious executable files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          suspicious=0
+
+          while IFS= read -r -d '' file; do
+            echo "::warning file=$file::Suspicious executable file found: $file"
+            suspicious=1
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -path './build' -prune -o \
+              -path './dist' -prune -o \
+              -type f \
+              \( \
+                -iname '*.exe' -o \
+                -iname '*.dll' -o \
+                -iname '*.scr' -o \
+                -iname '*.com' -o \
+                -iname '*.bat' -o \
+                -iname '*.cmd' -o \
+                -iname '*.ps1' \
+              \) \
+              -print0
+          )
+
+          if [ "$suspicious" -ne 0 ]; then
+            echo "::error::Suspicious executable files were detected."
+            exit 1
+          fi
+
+          echo "No suspicious executable files detected."
+
+  pdf:
+    name: PDF Security Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install PDF validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qpdf file
+
+      - name: Validate PDF files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pdf_count=0
+
+          while IFS= read -r -d '' pdf; do
+            pdf_count=$((pdf_count + 1))
+
+            echo "Checking: $pdf"
+
+            test -s "$pdf"
+
+            file "$pdf" | grep -Ei 'PDF document'
+
+            qpdf --check "$pdf"
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -path './build' -prune -o \
+              -path './dist' -prune -o \
+              -type f \
+              -iname '*.pdf' \
+              -print0
+          )
+
+          echo "Checked $pdf_count PDF(s)."
+
+  actions:
+    name: GitHub Actions Security
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # verify against the intended zizmor release before merging
+        with:
+          advanced-security: false
