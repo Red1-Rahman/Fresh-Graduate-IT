@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  malware:
+  malware-scan:
     name: Malware Scan
     runs-on: ubuntu-latest
 
@@ -25,9 +25,31 @@ jobs:
           persist-credentials: false
 
       - name: Install ClamAV
+        shell: bash
         run: |
+          set -euo pipefail
+
           sudo apt-get update
           sudo apt-get install -y clamav
+
+      - name: Stop automatic FreshClam service
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if systemctl list-unit-files --type=service \
+              | grep -q '^clamav-freshclam\.service'; then
+            echo "Stopping automatic FreshClam service."
+
+            sudo systemctl stop clamav-freshclam.service
+
+            if systemctl is-active --quiet clamav-freshclam.service; then
+              echo "::error::clamav-freshclam.service is still running."
+              exit 1
+            fi
+          else
+            echo "clamav-freshclam.service is not installed."
+          fi
 
       - name: Update ClamAV definitions
         shell: bash
@@ -120,7 +142,7 @@ jobs:
 
           echo "No suspicious executable files detected."
 
-  pdf:
+  pdf-validation:
     name: PDF Security Validation
     runs-on: ubuntu-latest
 
@@ -134,7 +156,10 @@ jobs:
           persist-credentials: false
 
       - name: Install PDF validation tools
+        shell: bash
         run: |
+          set -euo pipefail
+
           sudo apt-get update
           sudo apt-get install -y qpdf file
 
@@ -148,7 +173,7 @@ jobs:
           while IFS= read -r -d '' pdf; do
             pdf_count=$((pdf_count + 1))
 
-            echo "Checking: $pdf"
+            echo "Checking $pdf"
 
             test -s "$pdf"
 
@@ -168,8 +193,8 @@ jobs:
 
           echo "Checked $pdf_count PDF(s)."
 
-  actions:
-    name: GitHub Actions Security
+  zizmor:
+    name: Zizmor
     runs-on: ubuntu-latest
 
     permissions:
@@ -183,6 +208,6 @@ jobs:
           persist-credentials: false
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # verify against the intended zizmor release before merging
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
           advanced-security: false
