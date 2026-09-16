@@ -1,0 +1,765 @@
+% Title:    BCS Preliminary Mathematics
+% Scope:    Secondary-level mathematical reasoning for BCS preliminary preparation
+% Engines:  verified with pdflatex; source designed for xelatex/lualatex compatibility
+% License:  CC BY-SA 4.0 for original material in this document
+
+\documentclass[12pt,a4paper,oneside]{book}
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\else
+  \usepackage{fontspec}
+  \setmainfont{DejaVu Serif}
+\fi
+
+\usepackage[english]{babel}
+\usepackage{microtype}
+\usepackage{ragged2e}
+\setlength{\emergencystretch}{3em}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{tocloft}
+\renewcommand{\cftchapfont}{\small}
+\renewcommand{\cftchappagefont}{\small}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[section]{placeins}
+\usepackage{xcolor}
+\definecolor{OIblue}{RGB}{0,114,178}
+\definecolor{OIgreen}{RGB}{0,158,115}
+\definecolor{OIvermillion}{RGB}{213,94,0}
+\definecolor{OIorange}{RGB}{230,159,0}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{cleveref}
+\hypersetup{
+  pdftitle={BCS Preliminary Mathematics},
+  pdfauthor={Fresh Graduate IT contributors},
+  pdfsubject={BCS Mathematical Reasoning preparation},
+  pdfkeywords={BCS, Bangladesh Civil Service, mathematics, mathematical reasoning, arithmetic, algebra, geometry, probability},
+  colorlinks=true,
+  linkcolor=OIblue,
+  citecolor=OIgreen,
+  urlcolor=OIvermillion
+}
+
+\newcommand{\ans}[1]{\textbf{Answer:} #1}
+\newcommand{\tip}[1]{\paragraph{Exam tip.} #1}
+\newcommand{\formula}[1]{\begin{center}\fbox{\parbox{0.92\linewidth}{#1}}\end{center}}
+\newcommand{\q}[2]{\paragraph{#1} #2}
+
+\begin{document}
+
+\frontmatter
+\begin{titlepage}
+  \centering
+  {\LARGE\bfseries BCS Preliminary Mathematics\par}
+  \vspace{0.4cm}
+  {\Large Mathematical Reasoning: Secondary-Level Mastery\par}
+  \vspace{0.8cm}
+  {\large A formula-first, pattern-first and practice-oriented guide\par}
+  \vfill
+  {\small
+  Prepared for the Fresh Graduate IT preparation repository.\\
+  Original synthesis based on the supplied NCTB Class 8 Mathematics, Class 9--10 Mathematics,
+  and Class 9--10 Higher Mathematics textbooks, cross-checked against the BPSC mathematical-reasoning syllabus.\\[0.3cm]
+  Original material in this document is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0).\\
+  \url{https://creativecommons.org/licenses/by-sa/4.0/}\par}
+\end{titlepage}
+
+\chapter*{How to use this book}
+This is not a transcription of the supplied textbooks. It is an original BCS-focused synthesis of the concepts, formulas, problem patterns and methods needed to solve secondary-level mathematical-reasoning questions quickly and reliably. The supplied books provide the mathematical foundation; this guide reorganizes that foundation around examination use.
+
+The 2026 BPSC preliminary syllabus allocates 15 marks to Mathematical Reasoning and groups the content into five broad areas: number and commercial arithmetic; algebra; indices, logarithms, sequences and series; geometry and mensuration; and sets, permutations/combinations, statistics and probability. \cite{bpscpreli} The BPSC written syllabus likewise describes mathematical reasoning as application of mathematics acquired up to secondary level and lists arithmetic, algebra, geometry, trigonometry, Cartesian geometry, sets, counting and elementary probability. \cite{bpscwritten}
+
+The supplied Class 9--10 Higher Mathematics textbook contains chapters on Set and Function, Algebraic Expressions, Geometry, Geometric Construction, Equations, Inequalities, Infinite Series, Trigonometry, Exponential and Logarithmic Functions, Binomial Expansion, Coordinate Geometry, Plane Vectors, Solid Geometry and Probability. The Class 9--10 Mathematics textbook contains Real Numbers, Set and Function, Algebraic Expressions, Indices and Logarithms, One-Variable Equations, Lines/Angles/Triangles, Practical Geometry, Circles, Trigonometric Ratios, Distance and Height, Ratio and Proportion, Simultaneous Linear Equations, Finite Series, Similarity/Symmetry, Area Theorems, Mensuration and Statistics. The Class 8 textbook adds patterns, profit, measurement, algebraic identities and applications, algebraic fractions, simultaneous equations, sets, quadrilaterals, Pythagoras, circles and data.
+
+\tableofcontents
+\listoftables
+
+\mainmatter
+
+\chapter[BCS Mathematics Map]{The BCS Mathematics Map}
+\section{What the official syllabus actually asks}
+For the preliminary examination, the official BPSC syllabus lists five three-mark areas under Mathematical Reasoning: real numbers, LCM/GCD, percentage, interest, ratio/proportion and profit/loss; algebraic identities, factorization, equations, inequalities and simultaneous equations; indices, logarithms and arithmetic/geometric sequences and series; geometry, Pythagoras, circles and mensuration; and sets, permutations/combinations, statistics and probability. \cite{bpscpreli}
+
+\begin{table}[htbp]
+\centering
+\caption{BCS preliminary syllabus mapped to the supplied textbooks.}
+\label{tab:syllabus-map}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.18\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.43\linewidth}@{}}
+\toprule
+BCS area & Main textbook foundations & High-value subskills \\
+\midrule
+Arithmetic & Class 8; Class 9--10 Math & divisibility, fractions, percentage, ratio, average, interest, profit/loss, work/time \\
+Algebra & Class 8; Class 9--10 Math; Higher Math & identities, factorization, equations, inequalities, polynomials \\
+Indices, logs, series & Class 9--10 Math; Higher Math & exponent laws, logarithms, AP, GP, finite and infinite series \\
+Geometry and mensuration & Class 8; Class 9--10 Math; Higher Math & triangles, circles, Pythagoras, area, volume, coordinate geometry, trigonometry \\
+Sets, counting, probability, statistics & Class 8; Higher Math; Class 9--10 Math & Venn diagrams, counting, permutations, combinations, probability, central tendency \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{A practical solving hierarchy}
+When a question looks unfamiliar, classify it before calculating:
+\begin{enumerate}[label=\arabic*.]
+  \item Identify the quantities and their units.
+  \item Translate the wording into an equation, ratio, diagram or counting model.
+  \item Look for a standard identity or invariant before expanding anything.
+  \item Reduce fractions and ratios early.
+  \item Estimate the answer range before committing to an option.
+  \item Use the shortest valid method, but verify with substitution or an independent check.
+\end{enumerate}
+
+\tip{In MCQ mathematics, an exact method is not automatically the fastest method. Factorization, ratio cancellation, option substitution, symmetry and bounds can eliminate most arithmetic.}
+
+\chapter[Numbers and Divisibility]{Number Systems, Divisibility and Real Numbers}
+\section{Core number sets}
+The standard hierarchy is
+\[\mathbb N\subseteq\mathbb Z\subseteq\mathbb Q\subseteq\mathbb R,\]
+where \(\mathbb N\) denotes natural numbers, \(\mathbb Z\) integers, \(\mathbb Q\) rational numbers and \(\mathbb R\) real numbers. Irrational numbers are real but not rational.
+
+\section{Prime factorization}
+Every integer greater than 1 can be decomposed into prime factors. This is the basis of efficient HCF/GCD and LCM calculations.
+\formula{If \(a=\prod p_i^{\alpha_i}\) and \(b=\prod p_i^{\beta_i}\), then
+\[\gcd(a,b)=\prod p_i^{\min(\alpha_i,\beta_i)},\qquad
+\operatorname{lcm}(a,b)=\prod p_i^{\max(\alpha_i,\beta_i)}.\]}
+For positive integers,
+\[ab=\gcd(a,b)\operatorname{lcm}(a,b).\]
+
+\section{Divisibility tests}
+\begin{itemize}
+\item 2: last digit is even.
+\item 3: digit sum is divisible by 3.
+\item 4: last two digits are divisible by 4.
+\item 5: last digit is 0 or 5.
+\item 6: divisible by both 2 and 3.
+\item 8: last three digits are divisible by 8.
+\item 9: digit sum is divisible by 9.
+\item 10: last digit is 0.
+\item 11: alternating digit sum is divisible by 11.
+\end{itemize}
+
+\q{Worked example.}{Find the smallest positive integer divisible by 12, 18 and 30.}
+Prime factors are \(12=2^2\cdot3\), \(18=2\cdot3^2\), \(30=2\cdot3\cdot5\). Therefore
+\[\operatorname{lcm}=2^2\cdot3^2\cdot5=180.\]
+\ans{180.}
+
+\section{Remainders}
+If \(a=bq+r\), then \(r\) is the remainder on division by \(b\), with \(0\le r<b\). For modular arithmetic,
+\[a\equiv r\pmod m.\]
+Useful consequences include
+\[(a+b)\bmod m=((a\bmod m)+(b\bmod m))\bmod m,\]
+and similarly for multiplication.
+
+\tip{For a large power, reduce the base modulo the divisor and look for a cycle.}
+
+\chapter[Fractions and Ratios]{Fractions, Ratio, Proportion and Unitary Method}
+\section{Fractions}
+For nonzero denominators,
+\[\frac ab+\frac cd=\frac{ad+bc}{bc},\qquad
+\frac ab\times\frac cd=\frac{ac}{bd},\qquad
+\frac ab\div\frac cd=\frac{ad}{bc}.\]
+Cancel common factors before multiplying.
+
+\section{Ratio}
+If \(a:b=m:n\), then \(a=km\) and \(b=kn\) for some common factor \(k\). If a total \(T\) is divided in the ratio \(m:n\), the shares are
+\[\frac{m}{m+n}T,\qquad \frac{n}{m+n}T.\]
+For three parts \(a:b:c\), divide by \(a+b+c\).
+
+\section{Direct and inverse proportion}
+Direct proportion: \(y\propto x\Rightarrow y=kx\). Inverse proportion: \(y\propto1/x\Rightarrow xy=k\).
+
+\q{Worked example.}{A sum is divided among A, B and C in the ratio \(2:3:5\). If the total is 2400, find C's share.}
+\[C=\frac5{2+3+5}(2400)=1200.\]
+\ans{1200.}
+
+\chapter[Percentages and Profit]{Percentage, Average, Profit, Loss and Interest}
+\section{Percentage}
+\[x\%\text{ of }y=\frac{x}{100}y.\]
+An increase by \(r\%\) multiplies a quantity by \(1+r/100\); a decrease by \(r\%\) multiplies it by \(1-r/100\).
+
+Two successive percentage changes \(a\%\) and \(b\%\) have net multiplier
+\[\left(1+\frac a{100}\right)\left(1+\frac b{100}\right).\]
+Thus the net percentage change is
+\[a+b+\frac{ab}{100}\%\]
+when both are increases; signs must be retained for decreases.
+
+\section{Average}
+\[\text{Average}=\frac{\text{sum of observations}}{\text{number of observations}}.\]
+If the average of \(n\) observations is \(A\), their sum is \(nA\). If one value changes by \(d\), the average changes by \(d/n\).
+
+\section{Profit and loss}
+\[\text{Profit}=SP-CP,\qquad \text{Loss}=CP-SP.\]
+\[\text{Profit\%}=\frac{SP-CP}{CP}\times100,\qquad
+\text{Loss\%}=\frac{CP-SP}{CP}\times100.\]
+If marked price is \(M\) and discount is \(d\%\),
+\[SP=M\left(1-\frac d{100}\right).\]
+
+\section{Simple and compound interest}
+For principal \(P\), annual rate \(r\%\), time \(n\) years,
+\[SI=\frac{Prn}{100},\qquad A=P+SI.\]
+For annual compounding,
+\[A=P\left(1+\frac r{100}\right)^n,\qquad CI=A-P.\]
+For depreciation at rate \(r\), replace the plus sign by a minus sign.
+
+\q{Worked example.}{A price is increased by 20\% and then reduced by 20\%. What is the net change?}
+Multiplier \(=1.2\times0.8=0.96\). Therefore the final value is 96\% of the original.
+\ans{A 4\% decrease.}
+
+\chapter[Work, Speed and Mixtures]{Work, Time, Speed and Mixture Models}
+\section{Work rate method}
+If A completes a job in \(x\) days, A's one-day rate is \(1/x\). If A and B take \(x\) and \(y\) days separately,
+\[\text{combined rate}=\frac1x+\frac1y=\frac{x+y}{xy}.\]
+For three workers, add the three rates.
+
+\section{Pipes and cisterns}
+Treat filling as positive rate and emptying as negative rate. If a pipe fills in \(x\) hours and a drain empties in \(y\) hours,
+\[r=\frac1x-\frac1y.\]
+
+\section{Speed, distance and time}
+\[v=\frac dt,\qquad d=vt,\qquad t=\frac dv.\]
+For equal distances at speeds \(u\) and \(v\), the average speed is the harmonic mean:
+\[v_{avg}=\frac{2uv}{u+v}.\]
+For equal time intervals, the average speed is the arithmetic mean.
+
+Conversion:
+\[1\ \mathrm{m/s}=\frac{18}{5}\ \mathrm{km/h},\qquad 1\ \mathrm{km/h}=\frac5{18}\ \mathrm{m/s}.\]
+
+\section{Mixture and weighted average}
+If quantities \(x_i\) have values/rates \(r_i\), their weighted average is
+\[\bar r=\frac{\sum x_ir_i}{\sum x_i}.\]
+For two prices \(p_1,p_2\) mixed in quantities \(q_1,q_2\), the unit price is
+\[\frac{p_1q_1+p_2q_2}{q_1+q_2}.\]
+
+\chapter[Identities and Factorization]{Algebraic Identities and Factorization}
+The high-frequency identities are
+\begin{align*}
+(a+b)^2&=a^2+2ab+b^2,\\
+(a-b)^2&=a^2-2ab+b^2,\\
+a^2-b^2&=(a-b)(a+b),\\
+(a+b)^3&=a^3+3a^2b+3ab^2+b^3,\\
+(a-b)^3&=a^3-3a^2b+3ab^2-b^3,\\
+a^3+b^3&=(a+b)(a^2-ab+b^2),\\
+a^3-b^3&=(a-b)(a^2+ab+b^2).
+\end{align*}
+
+A particularly useful identity is
+\[a^2+b^2=(a+b)^2-2ab.\]
+Thus knowing \(a+b\) and \(ab\) is often enough to obtain \(a^2+b^2\), \(a^3+b^3\), or the roots of a quadratic.
+
+\section{Quadratic equations}
+For \(ax^2+bx+c=0\),
+\[x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}.\]
+The discriminant is \(D=b^2-4ac\).
+\[x_1+x_2=-\frac ba,\qquad x_1x_2=\frac ca.\]
+
+\q{Worked example.}{If \(x+y=7\) and \(xy=10\), find \(x^2+y^2\).}
+\[x^2+y^2=(x+y)^2-2xy=49-20=29.\]
+\ans{29.}
+
+\chapter[Equations and Inequalities]{Linear Equations, Simultaneous Equations and Inequalities}
+\section{Linear equations}
+Preserve equality when manipulating an equation. Clear denominators only after identifying excluded values.
+
+\section{Two linear equations}
+For
+\[a_1x+b_1y=c_1,\qquad a_2x+b_2y=c_2,\]
+elimination is usually fastest. Cramer's rule gives
+\[D=a_1b_2-a_2b_1,\]
+\[x=\frac{c_1b_2-c_2b_1}{D},\qquad y=\frac{a_1c_2-a_2c_1}{D},\]
+when \(D\ne0\).
+
+\section{Inequalities}
+Adding or subtracting the same quantity preserves inequality direction. Multiplying or dividing by a negative quantity reverses it.
+For quadratic inequalities, find the roots, partition the number line into intervals, and test the sign of each interval.
+
+\tip{Never divide an inequality by an expression whose sign has not been established.}
+
+\chapter[Indices and Logarithms]{Indices and Logarithms}
+\section{Index laws}
+For appropriate nonzero bases,
+\begin{align*}
+a^ma^n&=a^{m+n},&\frac{a^m}{a^n}&=a^{m-n},\\
+(a^m)^n&=a^{mn},&(ab)^n&=a^nb^n,\\
+a^0&=1,&a^{-n}&=\frac1{a^n}.
+\end{align*}
+Fractional powers satisfy \(a^{m/n}=\sqrt[n]{a^m}\) where defined.
+
+\section{Logarithms}
+\[\log_a x=y\iff a^y=x,\qquad a>0,\ a\ne1,\ x>0.\]
+Rules:
+\begin{align*}
+\log_a(xy)&=\log_a x+\log_a y,\\
+\log_a\left(\frac xy\right)&=\log_a x-\log_a y,\\
+\log_a(x^k)&=k\log_a x,\\
+\log_a b&=\frac{\log_c b}{\log_c a}.
+\end{align*}
+Important special values: \(\log_a1=0\) and \(\log_a a=1\).
+
+\q{Worked example.}{Solve \(2^{x+1}=16\).}
+Since \(16=2^4\), \(x+1=4\), hence \(x=3\).
+\ans{3.}
+
+\chapter[AP, GP and Series]{Arithmetic and Geometric Sequences and Series}
+\section{Arithmetic progression}
+For first term \(a\), common difference \(d\), nth term:
+\[a_n=a+(n-1)d.\]
+Sum of first \(n\) terms:
+\[S_n=\frac n2[2a+(n-1)d]=\frac n2(a+l),\]
+where \(l\) is the last term.
+
+\section{Geometric progression}
+For first term \(a\), common ratio \(r\),
+\[a_n=ar^{n-1}.\]
+For \(r\ne1\),
+\[S_n=a\frac{r^n-1}{r-1}=a\frac{1-r^n}{1-r}.\]
+If \(|r|<1\), the infinite sum is
+\[S_\infty=\frac a{1-r}.\]
+
+\section{Useful sequence observations}
+\begin{itemize}
+\item Constant first difference suggests an AP.
+\item Constant ratio suggests a GP.
+\item Constant second difference suggests a quadratic pattern.
+\item A sequence where each term depends on the previous two terms often signals a recurrence such as Fibonacci.
+\end{itemize}
+
+\chapter[Sets, Venn Diagrams and Counting]{Set Theory, Venn Diagrams and Counting}
+\section{Sets}
+For sets \(A,B\), union is \(A\cup B\), intersection is \(A\cap B\), difference is \(A\setminus B\), and complement is \(A^c\) relative to the universal set.
+
+For two finite sets,
+\[n(A\cup B)=n(A)+n(B)-n(A\cap B).\]
+For three sets,
+\begin{align*}
+n(A\cup B\cup C)={}&n(A)+n(B)+n(C)\\
+&-n(A\cap B)-n(B\cap C)-n(C\cap A)\\
+&+n(A\cap B\cap C).
+\end{align*}
+
+\section{Counting principles}
+If a task has \(m\) choices followed by \(n\) choices, there are \(mn\) ordered outcomes.
+
+\section{Permutations and combinations}
+\[{}^nP_r=\frac{n!}{(n-r)!},\qquad {}^nC_r=\frac{n!}{r!(n-r)!}.\]
+Relations:
+\[{}^nC_r={}^nC_{n-r},\qquad {}^nP_r=r!\,{}^nC_r.\]
+Use permutations when order matters; combinations when it does not.
+
+\q{Worked example.}{How many different three-person ordered committees can be selected from eight people?}
+\[{}^8P_3=8\cdot7\cdot6=336.\]
+\ans{336.}
+
+\chapter[Probability]{Probability}
+For equally likely outcomes,
+\[P(E)=\frac{n(E)}{n(S)}.\]
+Always satisfy \(0\le P(E)\le1\).
+
+Complement:
+\[P(E^c)=1-P(E).\]
+For mutually exclusive events,
+\[P(A\cup B)=P(A)+P(B).\]
+In general,
+\[P(A\cup B)=P(A)+P(B)-P(A\cap B).\]
+Conditional probability:
+\[P(A\mid B)=\frac{P(A\cap B)}{P(B)}.\]
+If A and B are independent,
+\[P(A\cap B)=P(A)P(B).\]
+
+\tip{In card, dice and coin questions, define the sample space before counting favorable cases. For "at least one", the complement is often shorter.}
+
+\chapter[Lines, Angles and Triangles]{Geometry: Lines, Angles and Triangles}
+\section{Angle facts}
+\begin{itemize}
+\item Straight angle: \(180^\circ\).
+\item Full angle: \(360^\circ\).
+\item Vertically opposite angles are equal.
+\item Complementary angles sum to \(90^\circ\).
+\item Supplementary angles sum to \(180^\circ\).
+\end{itemize}
+
+For parallel lines cut by a transversal, corresponding and alternate interior angles are equal; co-interior angles are supplementary.
+
+\section{Triangles}
+\[A+B+C=180^\circ.\]
+Exterior angle equals the sum of the two opposite interior angles.
+For a right triangle,
+\[a^2+b^2=c^2.\]
+The area is
+\[\frac12 bh.\]
+
+Heron's formula, useful when all three sides are known:
+\[s=\frac{a+b+c}{2},\qquad K=\sqrt{s(s-a)(s-b)(s-c)}.\]
+
+\section{Similarity}
+If two triangles are similar, corresponding sides are proportional and corresponding angles equal. If the side scale factor is \(k\), areas scale by \(k^2\).
+
+\chapter[Quadrilaterals, Polygons and Circles]{Quadrilaterals, Polygons and Circles}
+For an \(n\)-gon,
+\[\text{sum of interior angles}=(n-2)180^\circ.\]
+A parallelogram has opposite sides and opposite angles equal; diagonals bisect each other. A rectangle has four right angles. A rhombus has four equal sides. A square has both rectangle and rhombus properties.
+
+\section{Circle essentials}
+Circumference:
+\[C=2\pi r.\]
+Area:
+\[A=\pi r^2.\]
+Arc length for central angle \(\theta\) degrees:
+\[L=\frac{\theta}{360^\circ}2\pi r.\]
+Sector area:
+\[A_s=\frac{\theta}{360^\circ}\pi r^2.\]
+An angle subtended by a diameter is a right angle. Equal chords subtend equal angles at the center; the perpendicular from the center to a chord bisects the chord.
+
+\chapter[Mensuration]{Mensuration: Plane Figures and Solids}
+\section{Plane figures}
+\begin{table}[htbp]
+\centering
+\caption{Core plane-area formulas.}
+\label{tab:areas}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Figure & Area & Perimeter/circumference \\
+\midrule
+Square, side \(a\) & \(a^2\) & \(4a\) \\
+Rectangle \(l\times w\) & \(lw\) & \(2(l+w)\) \\
+Triangle & \(\frac12 bh\) & sum of sides \\
+Parallelogram & \(bh\) & \(2(a+b)\) \\
+Circle & \(\pi r^2\) & \(2\pi r\) \\
+Trapezium & \(\frac12(a+b)h\) & sum of sides \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Solids}
+\begin{align*}
+V_{\text{cuboid}}&=lwh,\\
+V_{\text{cube}}&=a^3,\\
+V_{\text{cylinder}}&=\pi r^2h,\\
+V_{\text{cone}}&=\frac13\pi r^2h,\\
+V_{\text{sphere}}&=\frac43\pi r^3.
+\end{align*}
+Surface areas:
+\[SA_{sphere}=4\pi r^2,\qquad SA_{cylinder,curved}=2\pi rh.\]
+
+\tip{Keep units consistent. A common trap is mixing square units, cubic units, metres and centimetres.}
+
+\chapter[Trigonometry and Height--Distance]{Trigonometry and Height--Distance}
+For a right triangle with angle \(\theta\),
+\[\sin\theta=\frac{\text{opposite}}{\text{hypotenuse}},\quad
+\cos\theta=\frac{\text{adjacent}}{\text{hypotenuse}},\quad
+\tan\theta=\frac{\text{opposite}}{\text{adjacent}}.\]
+Identities:
+\[\sin^2\theta+\cos^2\theta=1,\qquad
+1+\tan^2\theta=\sec^2\theta.\]
+Standard values:
+\begin{table}[htbp]
+\centering
+\caption{Standard trigonometric values.}
+\label{tab:trig}
+\begin{tabular}{@{}c|ccccc@{}}
+\toprule
+\(\theta\) & \(0^\circ\) & \(30^\circ\) & \(45^\circ\) & \(60^\circ\) & \(90^\circ\) \\
+\midrule
+\(\sin\theta\) & 0 & \(1/2\) & \(1/\sqrt2\) & \(\sqrt3/2\) & 1 \\
+\(\cos\theta\) & 1 & \(\sqrt3/2\) & \(1/\sqrt2\) & \(1/2\) & 0 \\
+\(\tan\theta\) & 0 & \(1/\sqrt3\) & 1 & \(\sqrt3\) & undefined \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Height and distance}
+Draw the right triangle first. If the observer is at horizontal distance \(d\) from the foot of an object and angle of elevation is \(\theta\), then
+\[h=d\tan\theta.\]
+If the line of sight is the hypotenuse \(L\), then \(h=L\sin\theta\) and \(d=L\cos\theta\).
+
+\chapter[Coordinate Geometry]{Coordinate Geometry and Graphs}
+Distance between \((x_1,y_1)\) and \((x_2,y_2)\):
+\[d=\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}.\]
+Midpoint:
+\[M=\left(\frac{x_1+x_2}{2},\frac{y_1+y_2}{2}\right).\]
+Slope:
+\[m=\frac{y_2-y_1}{x_2-x_1}.\]
+Straight-line forms:
+\[y=mx+c,\qquad y-y_1=m(x-x_1).\]
+Parallel nonvertical lines have equal slopes; perpendicular lines satisfy \(m_1m_2=-1\).
+
+\section{Graph strategy}
+For a linear equation, find the intercepts or two convenient points. For MCQs, checking a proposed point by substitution is often faster than drawing the graph.
+
+\chapter[Statistics and Data]{Statistics and Data}
+\section{Central tendency}
+Mean:
+\[\bar x=\frac{\sum x_i}{n}.\]
+For frequency data,
+\[\bar x=\frac{\sum f_ix_i}{\sum f_i}.\]
+Median is the middle ordered observation; for an even number of observations it is the average of the two central observations. Mode is the most frequent observation.
+
+\section{Range and basic dispersion}
+\[\text{Range}=\text{maximum}-\text{minimum}.\]
+When an observation is added or removed, update the total sum rather than recomputing every value.
+
+\chapter[MCQ Shortcuts]{Algebraic and Numerical Shortcuts for MCQs}
+\section{Option substitution}
+If the question asks for a value of \(x\) and gives four choices, testing the choices directly can be faster than solving a high-degree equation.
+
+\section{Back-solving}
+For word problems involving totals, prices, ages or rates, insert each candidate into the original condition. Reject candidates that violate even one condition.
+
+\section{Approximation and bounds}
+If the answer choices are widely separated, estimate. For positive \(a,b\),
+\[2\sqrt{ab}\le a+b\]
+by AM--GM. This can rapidly eliminate impossible options.
+
+\section{Difference of squares}
+If a calculation resembles \(n^2-k^2\), use
+\[n^2-k^2=(n-k)(n+k).\]
+For example,
+\[1001^2-999^2=(2)(2000)=4000.\]
+
+\section{Near-100 multiplication}
+For numbers near 100,
+\[(100+a)(100+b)=10000+100(a+b)+ab.\]
+This reduces mental multiplication.
+
+\chapter[BCS Question Archetypes]{BCS Question Archetypes}
+The historical BCS solution collection supplied by the user is a useful practice index for 10th--40th BCS preliminary mathematics. Public descriptions of that collection identify it as a sequence of question-solution resources for the 10th through 40th examinations. \cite{bcsarchive}
+
+The purpose of this chapter is not to reproduce those copyrighted question sets. Instead, it extracts the recurring *problem forms* that should be mastered.
+
+\begin{table}[htbp]
+\centering
+\caption{High-frequency question archetypes to drill.}
+\label{tab:archetypes}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.22\linewidth}>{\raggedright\arraybackslash}p{0.63\linewidth}@{}}
+\toprule
+Archetype & Recognition rule \\
+\midrule
+LCM/GCD & prime factorization, divisibility, repeated cycles \\
+Percentage chain & successive increase/decrease, discount, population/value change \\
+Ratio sharing & total divided into integer parts \\
+Average replacement & one observation replaced or added \\
+Profit or loss & CP, SP, MP and discount relations \\
+Interest & SI/CI, rate/time/principal \\
+Work rate & independent completion times, pipes and drains \\
+Speed, time and distance & relative motion, trains, equal-distance average speed \\
+Identity or factorization & hidden \((a\pm b)^2\), cubes, difference of squares \\
+Quadratic roots & sum/product of roots, discriminant, direct solution \\
+Indices and logs & common-base transformation, log laws \\
+AP or GP & nth term, sum, missing term, ratio/difference \\
+Geometry theorem & angle chase, similarity, Pythagoras, circle facts \\
+Mensuration & area/volume plus unit conversion \\
+Trigonometry & standard-angle values and height/distance \\
+Set counting & union/intersection/complement and Venn diagrams \\
+Permutation or combination & order matters or does not \\
+Probability & complement, mutually exclusive/independent events \\
+Statistics & mean, median, mode, frequency table \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\chapter[Formula Speed Sheet]{Speed Sheet: Formulas to Memorize}
+\begin{multicols}{2}
+\small
+\begin{itemize}[leftmargin=*]
+\item \(ab=\gcd(a,b)\operatorname{lcm}(a,b)\)
+\item \(\text{percentage}=\frac{\text{part}}{\text{whole}}100\)
+\item \(\bar x=\frac{\sum x}{n}\)
+\item \(SP=CP(1\pm r/100)\)
+\item \(SI=Prn/100\)
+\item \(A_{CI}=P(1+r/100)^n\)
+\item \(\text{rate}=1/\text{time}\)
+\item \(v=d/t\)
+\item \(u+v\) for combined direct rates
+\item \((a+b)^2=a^2+2ab+b^2\)
+\item \(a^2-b^2=(a-b)(a+b)\)
+\item \(a^3-b^3=(a-b)(a^2+ab+b^2)\)
+\item \(x_1+x_2=-b/a\)
+\item \(x_1x_2=c/a\)
+\item \(a^m a^n=a^{m+n}\)
+\item \(\log_a xy=\log_a x+\log_a y\)
+\item \(a_n=a+(n-1)d\)
+\item \(S_n=n[2a+(n-1)d]/2\)
+\item \(a_n=ar^{n-1}\)
+\item \(S_\infty=a/(1-r)\)
+\item \(n(A\cup B)=n(A)+n(B)-n(A\cap B)\)
+\item \({}^nP_r=n!/(n-r)!\)
+\item \({}^nC_r=n!/[r!(n-r)!]\)
+\item \(P(E^c)=1-P(E)\)
+\item \(P(A\cup B)=P(A)+P(B)-P(A\cap B)\)
+\item \(a^2+b^2=c^2\)
+\item \(A_{triangle}=bh/2\)
+\item \(C=2\pi r\)
+\item \(A_{circle}=\pi r^2\)
+\item \(d=\sqrt{(\Delta x)^2+(\Delta y)^2}\)
+\item \(m=\Delta y/\Delta x\)
+\item \(\sin^2\theta+\cos^2\theta=1\)
+\item \(\tan\theta=\sin\theta/\cos\theta\)
+\item \(V_{cylinder}=\pi r^2h\)
+\item \(V_{sphere}=4\pi r^3/3\)
+\end{itemize}
+\end{multicols}
+
+\chapter[Practice I: Fundamentals]{Original Practice Set I: Fundamentals}
+Answer each without looking at the answer key. These are original practice questions designed around the syllabus and textbook foundations.
+
+\begin{enumerate}[label=\textbf{Q\arabic*.}, leftmargin=*]
+\item Find the LCM of 24, 36 and 54.
+\item A number is increased by 15\% and then decreased by 15\%. Find the net percentage change.
+\item The ratio of two numbers is \(3:5\) and their sum is 64. Find the larger number.
+\item The average of five numbers is 18. If one number, 10, is replaced by 25, find the new average.
+\item An article costing 800 is sold at a 12.5\% profit. Find its selling price.
+\item A principal of 5000 earns simple interest at 8\% per year for 3 years. Find the interest.
+\item A can complete a job in 12 days and B in 18 days. How long do they take together?
+\item If \(x+y=9\) and \(xy=14\), find \(x^2+y^2\).
+\item Solve \(3x-7=20\).
+\item Solve \(x^2-7x+12=0\).
+\item Simplify \(2^3\cdot2^5/2^4\).
+\item Solve \(\log_2 x=5\).
+\item Find the 20th term of the AP \(7,10,13,\ldots\).
+\item Find the sum of the first 10 positive integers.
+\item Find the number of diagonals of a hexagon.
+\item The sides of a right triangle are 6 and 8 for the perpendicular sides. Find the hypotenuse.
+\item Find the area of a circle of radius 7 using \(\pi=22/7\).
+\item If \(\sin\theta=3/5\) for an acute angle, find \(\cos\theta\).
+\item Find the distance between \((1,2)\) and \((4,6)\).
+\item A bag contains 3 red and 2 blue balls. One ball is selected at random. Find the probability of blue.
+\end{enumerate}
+
+\chapter[Practice II: Mixed Reasoning]{Original Practice Set II: Mixed BCS Reasoning}
+\begin{enumerate}[label=\textbf{Q\arabic*.}, leftmargin=*]
+\item The HCF of two positive integers is 12 and their LCM is 180. If one integer is 36, find the other.
+\item A population rises by 10\% and then by another 20\%. Find the total percentage increase.
+\item If 40\% of a number is 72, find the number.
+\item A shopkeeper marks an article 25\% above cost and gives a 10\% discount. Find the profit percentage.
+\item A sum becomes 12100 in two years at 10\% compound interest annually. Find the principal.
+\item A train travels 180 km in 3 hours. Find its speed in m/s.
+\item A works twice as fast as B. Together they finish a job in 12 days. How many days would A alone need?
+\item If \(a+b=10\) and \(a-b=4\), find \(ab\).
+\item If the roots of \(x^2-9x+k=0\) have product 14, find \(k\).
+\item Solve \(2^{x}=32\).
+\item Find the sum of the first 8 terms of the GP \(3,6,12,\ldots\).
+\item If \(A\) and \(B\) are disjoint and \(P(A)=0.3\), \(P(B)=0.2\), find \(P(A\cup B)\).
+\item From 7 people, how many unordered pairs can be selected?
+\item From 7 people, how many ordered pairs can be selected without repetition?
+\item A triangle has angles \(2x,3x,4x\). Find the largest angle.
+\item The radius of a circle is doubled. By what factor does its area change?
+\item A cylinder has radius 3 and height 5. Express its volume in terms of \(\pi\).
+\item Find the equation of the line with slope 2 passing through \((1,3)\).
+\item If \(\tan\theta=3/4\) for acute \(\theta\), find \(\sec\theta\).
+\item The mean of 4 observations is 15. A fifth observation is 30. Find the new mean.
+\end{enumerate}
+
+\chapter[Answer Key]{Answer Key and Compact Solutions}
+\section{Practice Set I}
+\begin{enumerate}[label=\textbf{Q\arabic*.}, leftmargin=*]
+\item \(2^3\cdot3^3=216\).
+\item Multiplier \(1.15\times0.85=0.9775\), so \(2.25\%\) decrease.
+\item Larger number \(=64(5/8)=40\).
+\item Original sum \(=90\); new sum \(=105\); average \(=21\).
+\item \(800(1.125)=900\).
+\item \(5000(0.08)(3)=1200\).
+\item Rate \(=1/12+1/18=5/36\), so time \(=36/5\) days.
+\item \(81-28=53\).
+\item \(x=9\).
+\item \((x-3)(x-4)=0\), so \(x=3,4\).
+\item \(2^4=16\).
+\item \(x=32\).
+\item \(7+19(3)=64\).
+\item \(10(11)/2=55\).
+\item \(6(6-3)/2=9\).
+\item \(\sqrt{36+64}=10\).
+\item \(22/7\cdot49=154\).
+\item \(4/5\).
+\item \(\sqrt{3^2+4^2}=5\).
+\item \(2/5\).
+\end{enumerate}
+
+\section{Practice Set II}
+\begin{enumerate}[label=\textbf{Q\arabic*.}, leftmargin=*]
+\item \(36x=12\cdot180\), so \(x=60\).
+\item \(1.10\times1.20=1.32\), so 32\% increase.
+\item \(72/0.4=180\).
+\item Net multiplier \(1.25\times0.90=1.125\), so 12.5\% profit.
+\item \(P(1.1)^2=12100\), so \(P=10000\).
+\item \(180/3=60\) km/h \(=60(5/18)=50/3\) m/s.
+\item Let B's rate be \(r\); A's is \(2r\). Then \(3r=1/12\), so A takes 18 days.
+\item \(a=(10+4)/2=7\), \(b=3\), so \(ab=21\).
+\item Product of roots is \(k\), so \(k=14\).
+\item \(x=5\).
+\item \(3(2^8-1)/(2-1)=765\).
+\item \(0.3+0.2=0.5\).
+\item \({}^7C_2=21\).
+\item \({}^7P_2=42\).
+\item \(9x=180^\circ\), so largest angle \(=80^\circ\).
+\item Area factor \(=2^2=4\).
+\item \(\pi(3^2)(5)=45\pi\).
+\item \(y-3=2(x-1)\), so \(y=2x+1\).
+\item \(\sec^2\theta=1+9/16=25/16\), hence \(\sec\theta=5/4\).
+\item Original sum 60; new sum 90; mean 18.
+\end{enumerate}
+
+\chapter[Final Revision Protocol]{Final Revision Protocol}
+\section{Seven-pass revision}
+\begin{enumerate}[label=\arabic*.]
+\item Pass 1: memorize arithmetic identities, percentage multipliers and ratio rules.
+\item Pass 2: drill algebraic identities, factorization and equations.
+\item Pass 3: drill indices, logarithms, AP or GP and series.
+\item Pass 4: draw geometry figures and reproduce core theorems from memory.
+\item Pass 5: memorize mensuration and standard trigonometric values.
+\item Pass 6: drill sets, counting, probability and statistics.
+\item Pass 7: solve mixed MCQs under time pressure and classify every error by topic.
+\end{enumerate}
+
+\section{Error log template}
+\begin{table}[htbp]
+\centering
+\caption{Recommended mathematics error log.}
+\label{tab:error-log}
+\begin{tabularx}{\linewidth}{@{}p{0.17\linewidth}p{0.2\linewidth}X p{0.2\linewidth}@{}}
+\toprule
+Date & Topic & Error type & Correct rule/method \\
+\midrule
+ & & concept / arithmetic / interpretation / time & \\
+ & & concept / arithmetic / interpretation / time & \\
+ & & concept / arithmetic / interpretation / time & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\backmatter
+\chapter[Sources and Scope]{Source Notes and Scope}
+\section{Supplied textbooks}
+This guide was prepared from the supplied 2026 NCTB editions of:
+\begin{itemize}
+\item Class 8 Mathematics;
+\item Class 9--10 Mathematics;
+\item Class 9--10 Higher Mathematics.
+\end{itemize}
+The source textbooks are the basis for the mathematical terminology, progression and topic coverage. The present document intentionally paraphrases and synthesizes rather than reproducing textbook passages.
+
+\section{BCS sources}
+The current BPSC preliminary syllabus was used to select and prioritize the topics in this guide. The historical 10th--40th BCS math-solution collection supplied by the user was used only as a practice-index reference; questions are not reproduced here.
+
+\begin{thebibliography}{9}
+\bibitem{bpscpreli}
+Bangladesh Public Service Commission, \emph{Syllabus for BCS Preliminary Test}, Mathematical Reasoning, 15 marks. Official BPSC source: \url{https://bpsc.gov.bd/sites/default/files/files/bpsc.portal.gov.bd/psc_exam/93992bad_97b2_4d13_84eb_902cc36f2d5f/SYLLABUS%20FOR%20BCS%20PRILIMINARY%20TEST.pdf}.
+
+\bibitem{bpscwritten}
+Bangladesh Public Service Commission, \emph{Syllabus for BCS (Written) Examination}, Mathematical Reasoning. Official BPSC source: \url{https://bpsc.gov.bd/sites/default/files/files/bpsc.portal.gov.bd/psc_exam/3c11cd64_6370_4e04_be9a_60f82b085597/SYLLABUS%20FOR%20BCS%20%28WRITTEN%29%20EXAMINATION.pdf}.
+
+\bibitem{bcsarchive}
+Public descriptions of the supplied 10th--40th BCS mathematics question/solution collection, including the Scribd index and related solution index pages. These are treated as practice-navigation sources, not as authoritative BPSC documents.
+\end{thebibliography}
+
+\end{document}
