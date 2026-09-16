@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository:
+    name: Repository Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate repository structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "README.md"
+            "CONTRIBUTING.md"
+            "SECURITY.md"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Required repository file is missing: $file"
+              exit 1
+            fi
+          done
+
+          test -d ".github/workflows"
+
+          echo "Repository structure validation passed."
+
+      - name: Validate workflow files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          workflow_count=0
+
+          while IFS= read -r -d '' workflow; do
+            workflow_count=$((workflow_count + 1))
+
+            echo "Checking workflow: $workflow"
+
+            test -s "$workflow"
+
+            grep -Eq '^name:' "$workflow"
+            grep -Eq '^on:' "$workflow"
+            grep -Eq '^jobs:' "$workflow"
+
+          done < <(
+            find .github/workflows \
+              -maxdepth 1 \
+              -type f \
+              \( -name '*.yml' -o -name '*.yaml' \) \
+              -print0
+          )
+
+          if [ "$workflow_count" -eq 0 ]; then
+            echo "::error::No GitHub Actions workflow files were found."
+            exit 1
+          fi
+
+          echo "Validated $workflow_count workflow file(s)."
