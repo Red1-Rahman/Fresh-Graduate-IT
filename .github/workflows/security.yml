@@ -83,8 +83,6 @@ jobs:
             --no-cache-dir \
             cvdupdate==1.2.0
 
-          python3 -m cvdupdate --version
-
       - name: Update ClamAV definitions
         shell: bash
         run: |
@@ -1018,7 +1016,7 @@ jobs:
 
       - name: Upload steganography report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: steganography-report
           path: security-report/
@@ -1329,7 +1327,7 @@ jobs:
 
       - name: Upload metadata report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: metadata-report
           path: security-report/metadata/
@@ -1407,7 +1405,7 @@ jobs:
           sort -o security-report/SHA256SUMS security-report/SHA256SUMS
 
       - name: Upload hash inventory
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: artifact-sha256
           path: security-report/SHA256SUMS
