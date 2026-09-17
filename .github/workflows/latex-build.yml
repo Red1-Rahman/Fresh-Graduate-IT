@@ -107,7 +107,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@42371448472315c23ef76248239046a08538028d # v5.4.0
+        uses: actions/setup-python@42375524e23c8a927a3a9fb0e3d23cbdd652d87e # v5.4.0
         with:
           python-version: "3.11"
 
