@@ -2,7 +2,17 @@ name: LaTeX Build
 
 on:
   push:
+    paths:
+      - "**.tex"
+      - ".github/workflows/latex-build.yml"
+      - ".github/scripts/validate_latex.py"
+      - ".github/config/latex-validation.json"
   pull_request:
+    paths:
+      - "**.tex"
+      - ".github/workflows/latex-build.yml"
+      - ".github/scripts/validate_latex.py"
+      - ".github/config/latex-validation.json"
 
 permissions: {}
 
@@ -79,9 +89,55 @@ jobs:
               )
           PY
 
+  validate:
+    name: Validate LaTeX documents
+    needs: discover
+
+    if: needs.discover.outputs.documents != '[]'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9e0d79c591ca3f47a0f4a2b9db68adf
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pydantic
+
+      - name: Validate LaTeX documents
+        env:
+          DOCUMENTS_JSON: ${{ needs.discover.outputs.documents }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 .github/scripts/validate_latex.py \
+            $(python3 -c "import json, os; print(' '.join(json.loads(os.environ['DOCUMENTS_JSON'])))") \
+            --json-output /tmp/validation-results.json \
+            --strict
+
+      - name: Upload validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: latex-validation-results
+          path: /tmp/validation-results.json
+          retention-days: 7
+
   build:
     name: Build
-    needs: discover
+    needs: [discover, validate]
 
     if: needs.discover.outputs.documents != '[]'
 
@@ -125,25 +181,59 @@ jobs:
           choco install miktex -y --no-progress
           choco install qpdf -y --no-progress
 
-      - name: Install TeX Live
-        if: runner.os == 'macOS'
+      - name: Add MiKTeX to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          brew install --cask mactex
-          brew install qpdf
+          $miktexPath = "$env:ProgramFiles\MiKTeX\miktex\bin\x64"
+          if (Test-Path $miktexPath) {
+            Add-Content $env:GITHUB_PATH $miktexPath
+            Write-Host "Added MiKTeX to PATH: $miktexPath"
+          } else {
+            Write-Host "Warning: Expected MiKTeX path not found: $miktexPath"
+            Write-Host "Checking alternative locations..."
+            Get-ChildItem "$env:ProgramFiles" -Filter "*MiKTeX*" -Directory | ForEach-Object {
+              Write-Host "Found: $($_.FullName)"
+            }
+          }
+
+      - name: Verify MiKTeX installation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $miktexPath = "$env:ProgramFiles\MiKTeX\miktex\bin\x64"
+          if (Test-Path "$miktexPath\initexmf.exe") {
+            Write-Host "initexmf found at: $miktexPath\initexmf.exe"
+            & "$miktexPath\initexmf.exe" --version
+          } else {
+            Write-Host "Error: initexmf.exe not found"
+            Get-ChildItem "$env:ProgramFiles\MiKTeX" -Recurse -Include "initexmf.exe" | ForEach-Object {
+              Write-Host "Found: $($_.FullName)"
+            }
+            exit 1
+          }
 
       - name: Refresh TeX package database
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          initexmf --admin --update-fndb
-          initexmf --update-fndb
+          $miktexPath = "$env:ProgramFiles\MiKTeX\miktex\bin\x64"
+          & "$miktexPath\initexmf.exe" --admin --update-fndb
+          & "$miktexPath\initexmf.exe" --update-fndb
 
       - name: Configure automatic package installation
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          initexmf --admin --set-config-value [MPM]AutoInstall=1
-          initexmf --set-config-value [MPM]AutoInstall=1
+          $miktexPath = "$env:ProgramFiles\MiKTeX\miktex\bin\x64"
+          & "$miktexPath\initexmf.exe" --admin --set-config-value [MPM]AutoInstall=1
+          & "$miktexPath\initexmf.exe" --set-config-value [MPM]AutoInstall=1
+
+      - name: Install TeX Live
+        if: runner.os == 'macOS'
+        run: |
+          brew install --cask mactex
+          brew install qpdf
 
       - name: Create build directory
         shell: bash
