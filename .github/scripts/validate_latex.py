@@ -18,8 +18,6 @@ class LaTeXDocumentConfig(BaseModel):
     max_line_length: int = Field(default=100, ge=50)
     require_toc: bool = Field(default=True)
     require_bibliography: bool = Field(default=True)
-    forbidden_em_dashes: bool = Field(default=True)
-    max_em_dash_count: int = Field(default=0)
 
 
 class LaTeXValidationResult(BaseModel):
@@ -29,7 +27,6 @@ class LaTeXValidationResult(BaseModel):
     is_valid: bool
     chapter_count: int
     section_count: int
-    em_dash_count: int = Field(default=0, ge=0)
     long_lines: int = Field(default=0, ge=0)
     has_toc: bool = False
     has_bibliography: bool = False
@@ -82,7 +79,6 @@ class LaTeXDocumentValidator:
             section_count=len(re.findall(r"^\\section", content, re.MULTILINE)),
         )
 
-        self._check_em_dashes(content, result)
         self._check_line_length(content, result)
         self._check_toc(content, result)
         self._check_bibliography(content, result)
@@ -91,18 +87,6 @@ class LaTeXDocumentValidator:
         result.is_valid = len(result.errors) == 0
 
         return result
-
-    def _check_em_dashes(self, content: str, result: LaTeXValidationResult) -> None:
-        """Check for improperly formatted em dashes."""
-        em_dash_pattern = r"(?<![\\-])\-{3}(?!-)"
-        matches = list(re.finditer(em_dash_pattern, content))
-        result.em_dash_count = len(matches)
-
-        if self.config.forbidden_em_dashes and result.em_dash_count > 0:
-            result.errors.append(
-                f"Found {result.em_dash_count} em dashes (---). "
-                "Use appropriate LaTeX commands or rephrase with parentheses."
-            )
 
     def _check_line_length(self, content: str, result: LaTeXValidationResult) -> None:
         """Check for lines exceeding maximum length."""
@@ -193,7 +177,6 @@ def main() -> int:
         print(f"{'='*70}")
         print(f"Chapters: {result.chapter_count}")
         print(f"Sections: {result.section_count}")
-        print(f"Em dashes found: {result.em_dash_count}")
         print(f"Long lines: {result.long_lines}")
         print(f"Has TOC: {result.has_toc}")
         print(f"Has bibliography: {result.has_bibliography}")
