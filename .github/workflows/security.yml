@@ -3,14 +3,29 @@ name: Security
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
+# Deny all permissions by default.
+# Individual jobs explicitly request only what they need.
 permissions: {}
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Repository policy limits. Adjust to your project.
+  MAX_FILE_SIZE_MB: 100
+  MAX_ARCHIVE_EXPANDED_MB: 1024
+  MAX_ARCHIVE_RATIO: 100
+  MAX_ARCHIVE_FILES: 10000
+
 jobs:
+
+  # ============================================================
+  # 1. General malware scanning
+  # ============================================================
+
   malware-scan:
     name: Malware Scan
     runs-on: ubuntu-latest
@@ -23,14 +38,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
-      - name: Install ClamAV
+      - name: Install security tools
         shell: bash
         run: |
           set -euo pipefail
 
           sudo apt-get update
-          sudo apt-get install -y clamav
+          sudo apt-get install -y \
+            clamav \
+            clamav-freshclam \
+            file \
+            binutils \
+            unzip \
+            p7zip-full
 
       - name: Stop automatic FreshClam service
         shell: bash
@@ -39,16 +61,13 @@ jobs:
 
           if systemctl list-unit-files --type=service \
               | grep -q '^clamav-freshclam\.service'; then
-            echo "Stopping automatic FreshClam service."
 
-            sudo systemctl stop clamav-freshclam.service
+            sudo systemctl stop clamav-freshclam.service || true
 
             if systemctl is-active --quiet clamav-freshclam.service; then
               echo "::error::clamav-freshclam.service is still running."
               exit 1
             fi
-          else
-            echo "clamav-freshclam.service is not installed."
           fi
 
       - name: Update ClamAV definitions
@@ -56,29 +75,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "ClamAV version:"
-          clamscan --version
-
-          echo "FreshClam version:"
-          freshclam --version
-
           attempts=3
 
           for attempt in $(seq 1 "$attempts"); do
             echo "FreshClam update attempt ${attempt}/${attempts}"
 
             if sudo freshclam --verbose; then
-              echo "ClamAV definitions updated successfully."
               exit 0
             fi
 
             if [ "$attempt" -lt "$attempts" ]; then
-              echo "FreshClam update failed; retrying in 15 seconds."
               sleep 15
             fi
           done
 
-          echo "::error::Unable to update ClamAV definitions after ${attempts} attempts."
+          echo "::error::Unable to update ClamAV definitions."
           exit 1
 
       - name: Scan repository
@@ -89,10 +100,202 @@ jobs:
           clamscan \
             --recursive \
             --infected \
+            --alert-broken \
+            --block-max \
+            --max-filesize=100M \
+            --max-scansize=1G \
+            --max-recursion=10 \
+            --max-files=10000 \
             --exclude-dir='^./.git$' \
-            --exclude-dir='^./build$' \
-            --exclude-dir='^./dist$' \
             .
+
+  # ============================================================
+  # 2. Secret scanning
+  # ============================================================
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4
+        with:
+          args: detect --source . --redact --verbose --no-banner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  # ============================================================
+  # 3. File size and basic inventory
+  # ============================================================
+
+  file-inventory:
+    name: File Inventory and Limits
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate repository files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          max_bytes=$((MAX_FILE_SIZE_MB * 1024 * 1024))
+          violations=0
+
+          while IFS= read -r -d '' file; do
+            size=$(stat -c '%s' "$file")
+
+            if [ "$size" -gt "$max_bytes" ]; then
+              echo "::error file=$file::File exceeds ${MAX_FILE_SIZE_MB} MiB: ${size} bytes"
+              violations=1
+            fi
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "All files are within configured size limits."
+
+  # ============================================================
+  # 4. Extension vs actual file type
+  # ============================================================
+
+  file-type-validation:
+    name: File Type and Magic Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install file identification tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y file
+
+      - name: Validate known artifact formats
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=0
+
+          while IFS= read -r -d '' file; do
+            lower="${file,,}"
+
+            case "$lower" in
+
+              *.pdf)
+                if ! file "$file" | grep -qi 'PDF document'; then
+                  echo "::error file=$file::File extension is .pdf but file signature is not PDF."
+                  violations=1
+                fi
+                ;;
+
+              *.png)
+                if ! file "$file" | grep -qi 'PNG image'; then
+                  echo "::error file=$file::File extension is .png but file signature is not PNG."
+                  violations=1
+                fi
+                ;;
+
+              *.jpg|*.jpeg)
+                if ! file "$file" | grep -Eqi 'JPEG image'; then
+                  echo "::error file=$file::File extension is JPEG but file signature is not JPEG."
+                  violations=1
+                fi
+                ;;
+
+              *.gif)
+                if ! file "$file" | grep -qi 'GIF image'; then
+                  echo "::error file=$file::File extension is .gif but file signature is not GIF."
+                  violations=1
+                fi
+                ;;
+
+              *.webp)
+                if ! file "$file" | grep -qi 'Web/P image'; then
+                  echo "::error file=$file::File extension is .webp but file signature is not WebP."
+                  violations=1
+                fi
+                ;;
+
+              *.bmp)
+                if ! file "$file" | grep -qi 'PC bitmap'; then
+                  echo "::error file=$file::File extension is .bmp but file signature is not BMP."
+                  violations=1
+                fi
+                ;;
+
+              *.svg)
+                if ! file "$file" | grep -Eqi 'SVG|XML'; then
+                  echo "::error file=$file::File extension is .svg but file does not appear to be SVG/XML."
+                  violations=1
+                fi
+                ;;
+
+              *.zip)
+                if ! file "$file" | grep -Eqi 'Zip archive'; then
+                  echo "::error file=$file::File extension is .zip but file signature is not ZIP."
+                  violations=1
+                fi
+                ;;
+
+              *.7z)
+                if ! file "$file" | grep -Eqi '7-zip|7-zip archive'; then
+                  echo "::error file=$file::File extension is .7z but file signature is not 7-Zip."
+                  violations=1
+                fi
+                ;;
+
+            esac
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+  # ============================================================
+  # 5. Suspicious executable files
+  # ============================================================
 
   suspicious-files:
     name: Suspicious Executable Files
@@ -115,34 +318,47 @@ jobs:
           suspicious=0
 
           while IFS= read -r -d '' file; do
-            echo "::warning file=$file::Suspicious executable file found: $file"
+            echo "::error file=$file::Suspicious executable/script file found."
             suspicious=1
           done < <(
             find . \
               -path './.git' -prune -o \
-              -path './build' -prune -o \
-              -path './dist' -prune -o \
               -type f \
               \( \
                 -iname '*.exe' -o \
                 -iname '*.dll' -o \
                 -iname '*.scr' -o \
                 -iname '*.com' -o \
+                -iname '*.msi' -o \
+                -iname '*.jar' -o \
+                -iname '*.class' -o \
+                -iname '*.apk' -o \
+                -iname '*.appimage' -o \
+                -iname '*.deb' -o \
+                -iname '*.rpm' -o \
+                -iname '*.dmg' -o \
+                -iname '*.iso' -o \
                 -iname '*.bat' -o \
                 -iname '*.cmd' -o \
-                -iname '*.ps1' \
+                -iname '*.ps1' -o \
+                -iname '*.vbs' -o \
+                -iname '*.vbe' -o \
+                -iname '*.js' \
               \) \
               -print0
           )
 
           if [ "$suspicious" -ne 0 ]; then
-            echo "::error::Suspicious executable files were detected."
             exit 1
           fi
 
-          echo "No suspicious executable files detected."
+          echo "No prohibited executable/script files detected."
 
-  pdf-validation:
+  # ============================================================
+  # 6. PDF security
+  # ============================================================
+
+  pdf-security:
     name: PDF Security Validation
     runs-on: ubuntu-latest
 
@@ -155,13 +371,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install PDF validation tools
+      - name: Install PDF tools
         shell: bash
         run: |
           set -euo pipefail
 
           sudo apt-get update
-          sudo apt-get install -y qpdf file
+          sudo apt-get install -y \
+            qpdf \
+            file \
+            poppler-utils
 
       - name: Validate PDF files
         shell: bash
@@ -169,6 +388,7 @@ jobs:
           set -euo pipefail
 
           pdf_count=0
+          violations=0
 
           while IFS= read -r -d '' pdf; do
             pdf_count=$((pdf_count + 1))
@@ -177,21 +397,738 @@ jobs:
 
             test -s "$pdf"
 
-            file "$pdf" | grep -Ei 'PDF document'
+            if ! file "$pdf" | grep -qi 'PDF document'; then
+              echo "::error file=$pdf::Invalid PDF file signature."
+              violations=1
+              continue
+            fi
 
-            qpdf --check "$pdf"
+            if ! qpdf --check "$pdf"; then
+              echo "::error file=$pdf::qpdf structural validation failed."
+              violations=1
+              continue
+            fi
+
+            # Produce a normalized object representation for inspection.
+            tmp="$(mktemp --suffix=.pdf)"
+
+            if ! qpdf \
+                --qdf \
+                --object-streams=disable \
+                "$pdf" \
+                "$tmp"; then
+              echo "::error file=$pdf::Unable to normalize PDF."
+              rm -f "$tmp"
+              violations=1
+              continue
+            fi
+
+            # Active or embedded content that is unnecessary for ordinary
+            # compiled academic/document PDFs is treated as unsafe.
+            if grep -aEiq \
+                '/JavaScript|/JS|/Launch|/EmbeddedFile|/Filespec|/RichMedia|/Rendition|/Sound|/Movie|/3D|/FileAttachment' \
+                "$tmp"; then
+
+              echo "::error file=$pdf::Potentially active or embedded PDF content detected."
+              violations=1
+            fi
+
+            rm -f "$tmp"
 
           done < <(
             find . \
               -path './.git' -prune -o \
-              -path './build' -prune -o \
-              -path './dist' -prune -o \
               -type f \
               -iname '*.pdf' \
               -print0
           )
 
-          echo "Checked $pdf_count PDF(s)."
+          echo "Checked ${pdf_count} PDF(s)."
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+  # ============================================================
+  # 7. SVG security
+  # ============================================================
+
+  svg-security:
+    name: SVG Security Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install XML tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxml2-utils \
+            file
+
+      - name: Validate SVG files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=0
+
+          while IFS= read -r -d '' svg; do
+            echo "Checking $svg"
+
+            test -s "$svg"
+
+            # Parse XML while disabling external entity/network access.
+            if ! xmllint \
+                --noout \
+                --nonet \
+                "$svg"; then
+
+              echo "::error file=$svg::Invalid XML/SVG."
+              violations=1
+              continue
+            fi
+
+            # Active content.
+            if grep -aEiq \
+                '<script\b|javascript:|<foreignObject\b|<iframe\b|<object\b|<embed\b' \
+                "$svg"; then
+
+              echo "::error file=$svg::Active SVG content detected."
+              violations=1
+            fi
+
+            # Event handler attributes.
+            if grep -aEiq \
+                '\bon[a-zA-Z]+\s*=' \
+                "$svg"; then
+
+              echo "::error file=$svg::SVG event-handler attribute detected."
+              violations=1
+            fi
+
+            # External resources.
+            if grep -aEiq \
+                '(https?|ftp):\/\/|url\(\s*https?:|xlink:href\s*=\s*["'\'']https?:' \
+                "$svg"; then
+
+              echo "::error file=$svg::External SVG resource detected."
+              violations=1
+            fi
+
+            # XML external entity / DTD constructs.
+            if grep -aEiq \
+                '<!DOCTYPE|<!ENTITY|SYSTEM\s+["'\'']|PUBLIC\s+["'\'']' \
+                "$svg"; then
+
+              echo "::error file=$svg::Potential XML entity/DTD construct detected."
+              violations=1
+            fi
+
+            # Data URLs are intentionally rejected because this repository
+            # distributes static SVGs and does not need embedded active data.
+            if grep -aEiq \
+                'data:(text/html|application/javascript|application/x-javascript)' \
+                "$svg"; then
+
+              echo "::error file=$svg::Active data URL detected in SVG."
+              violations=1
+            fi
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -iname '*.svg' \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo "SVG security validation passed."
+
+  # ============================================================
+  # 8. Raster image structural validation
+  # ============================================================
+
+  image-security:
+    name: Image Security Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install image validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            file \
+            pngcheck \
+            jpeginfo \
+            webp
+
+      - name: Validate raster images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=0
+
+          while IFS= read -r -d '' image; do
+            lower="${image,,}"
+
+            echo "Checking $image"
+
+            case "$lower" in
+
+              *.png)
+                if ! pngcheck -q "$image"; then
+                  echo "::error file=$image::PNG structural validation failed."
+                  violations=1
+                fi
+
+                # PNG must end at IEND. Anything after IEND is suspicious.
+                iend_offset="$(
+                  python3 - "$image" <<'PY'
+          import sys
+          from pathlib import Path
+
+          data = Path(sys.argv[1]).read_bytes()
+
+          signature = b"\x89PNG\r\n\x1a\n"
+
+          if not data.startswith(signature):
+              print("-1")
+              raise SystemExit
+
+          pos = 8
+          end = -1
+
+          while pos + 12 <= len(data):
+              length = int.from_bytes(data[pos:pos+4], "big")
+              chunk = data[pos+4:pos+8]
+              next_pos = pos + 12 + length
+
+              if next_pos > len(data):
+                  print("-1")
+                  raise SystemExit
+
+              if chunk == b"IEND":
+                  end = next_pos
+                  break
+
+              pos = next_pos
+
+          print(end)
+          PY
+                )"
+
+                if [ "$iend_offset" -gt 0 ]; then
+                  total_size="$(stat -c '%s' "$image")"
+
+                  if [ "$total_size" -gt "$iend_offset" ]; then
+                    echo "::error file=$image::Trailing data found after PNG IEND chunk."
+                    violations=1
+                  fi
+                fi
+                ;;
+
+              *.jpg|*.jpeg)
+                if ! jpeginfo -c "$image" >/dev/null; then
+                  echo "::error file=$image::JPEG structural validation failed."
+                  violations=1
+                fi
+
+                # JPEG normally terminates at FF D9.
+                if ! python3 - "$image" <<'PY'
+          import sys
+          from pathlib import Path
+
+          data = Path(sys.argv[1]).read_bytes()
+
+          if not data.startswith(b"\xff\xd8"):
+              raise SystemExit(1)
+
+          eoi = data.rfind(b"\xff\xd9")
+
+          if eoi < 0:
+              raise SystemExit(1)
+
+          trailing = data[eoi + 2:]
+
+          # Allow ordinary zero padding, but reject non-zero trailing data.
+          if trailing and any(byte != 0 for byte in trailing):
+              raise SystemExit(1)
+          PY
+                then
+                  echo "::error file=$image::Suspicious JPEG trailing data detected."
+                  violations=1
+                fi
+                ;;
+
+              *.webp)
+                if ! webpinfo "$image" >/dev/null 2>&1; then
+                  echo "::error file=$image::WebP structural validation failed."
+                  violations=1
+                fi
+                ;;
+
+              *.gif)
+                if ! python3 - "$image" <<'PY'
+          import sys
+          from pathlib import Path
+
+          data = Path(sys.argv[1]).read_bytes()
+
+          if not (data.startswith(b"GIF87a") or data.startswith(b"GIF89a")):
+              raise SystemExit(1)
+
+          if b"\x3b" not in data:
+              raise SystemExit(1)
+          PY
+                then
+                  echo "::error file=$image::GIF structural validation failed."
+                  violations=1
+                fi
+                ;;
+
+              *.bmp)
+                if ! file "$image" | grep -qi 'PC bitmap'; then
+                  echo "::error file=$image::BMP validation failed."
+                  violations=1
+                fi
+                ;;
+
+            esac
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              \( \
+                -iname '*.png' -o \
+                -iname '*.jpg' -o \
+                -iname '*.jpeg' -o \
+                -iname '*.webp' -o \
+                -iname '*.gif' -o \
+                -iname '*.bmp' \
+              \) \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+  # ============================================================
+  # 9. Steganography heuristics
+  #
+  # IMPORTANT:
+  # This is a heuristic detector.
+  # It is intentionally not treated as proof of maliciousness.
+  # ============================================================
+
+  steganography-scan:
+    name: Steganography Heuristic Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install zsteg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y ruby-full
+
+          gem install zsteg -v 0.2.14 --no-document
+
+          zsteg --help >/dev/null
+
+      - name: Scan PNG and BMP files for common steganography
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          findings=0
+
+          mkdir -p security-report/steganography
+
+          while IFS= read -r -d '' image; do
+
+            output="security-report/steganography/$(printf '%s' "$image" \
+              | sha256sum \
+              | cut -d' ' -f1).txt"
+
+            echo "Scanning $image"
+
+            if ! zsteg \
+                --all \
+                --quiet \
+                "$image" > "$output" 2>&1; then
+
+              echo "::warning file=$image::zsteg encountered an analysis error."
+              continue
+            fi
+
+            # zsteg normally reports metadata. We are interested in
+            # findings indicating embedded files, encoded payloads,
+            # compressed data, OpenStego, wbStego, etc.
+
+            if grep -Eiq \
+                'file:|zlib:|OpenStego|wbStego|executable|ELF|PE32|PDF document|Zip archive|ASCII text:.*(http|password|secret)' \
+                "$output"; then
+
+              echo "::warning file=$image::Potential steganographic or embedded payload detected. Manual review required."
+              findings=1
+            fi
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              \( \
+                -iname '*.png' -o \
+                -iname '*.bmp' \
+              \) \
+              -print0
+          )
+
+          if [ "$findings" -ne 0 ]; then
+            echo
+            echo "============================================================"
+            echo "Potential steganography findings were detected."
+            echo "These are HEURISTIC findings, not proof of malicious content."
+            echo "Review the generated security report."
+            echo "============================================================"
+            echo
+
+            # Do not fail solely because of a statistical steganography
+            # heuristic. Deterministic embedded payloads are handled by
+            # the other security jobs.
+          fi
+
+      - name: Upload steganography report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: steganography-report
+          path: security-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ============================================================
+  # 10. Archive and embedded-content security
+  # ============================================================
+
+  archive-security:
+    name: Archive and Embedded Content Security
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install archive tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            unzip \
+            zip \
+            p7zip-full \
+            file
+
+      - name: Inspect archives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=0
+
+          max_expanded=$((MAX_ARCHIVE_EXPANDED_MB * 1024 * 1024))
+
+          while IFS= read -r -d '' archive; do
+            lower="${archive,,}"
+
+            echo "Inspecting $archive"
+
+            case "$lower" in
+
+              *.zip)
+                listing="$(mktemp)"
+
+                if ! unzip -Z -v "$archive" > "$listing"; then
+                  echo "::error file=$archive::Unable to inspect ZIP archive."
+                  violations=1
+                  rm -f "$listing"
+                  continue
+                fi
+
+                # Detect absolute paths and path traversal.
+                if unzip -Z -1 "$archive" \
+                    | grep -Eiq '(^/|(^|/)\.\.(/|$)|^[A-Za-z]:[\\/])'; then
+
+                  echo "::error file=$archive::ZIP contains an unsafe path."
+                  violations=1
+                fi
+
+                # Detect suspicious executable payloads inside archives.
+                if unzip -Z -1 "$archive" \
+                    | grep -Eiq \
+                      '\.(exe|dll|scr|com|bat|cmd|ps1|vbs|vbe|js|jar|apk|msi|deb|rpm|sh|elf)$'; then
+
+                  echo "::error file=$archive::ZIP contains a suspicious executable/script."
+                  violations=1
+                fi
+
+                rm -f "$listing"
+                ;;
+
+              *.7z)
+                listing="$(mktemp)"
+
+                if ! 7z l -slt "$archive" > "$listing"; then
+                  echo "::error file=$archive::Unable to inspect 7-Zip archive."
+                  violations=1
+                  rm -f "$listing"
+                  continue
+                fi
+
+                if grep -Eiq \
+                    '(^|[\\/])\.\.([\\/]|$)|^Path = /|^[A-Za-z]:[\\/]' \
+                    "$listing"; then
+
+                  echo "::error file=$archive::7-Zip contains a suspicious path."
+                  violations=1
+                fi
+
+                if grep -Eiq \
+                    '\.(exe|dll|scr|com|bat|cmd|ps1|vbs|vbe|js|jar|apk|msi|deb|rpm|sh)$' \
+                    "$listing"; then
+
+                  echo "::error file=$archive::7-Zip contains a suspicious executable/script."
+                  violations=1
+                fi
+
+                rm -f "$listing"
+                ;;
+
+            esac
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              \( \
+                -iname '*.zip' -o \
+                -iname '*.7z' \
+              \) \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+  # ============================================================
+  # 11. Embedded signature / polyglot detection
+  # ============================================================
+
+  embedded-signature-scan:
+    name: Embedded Payload and Polyglot Detection
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install binary inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils \
+            file
+
+      - name: Detect suspicious embedded signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=0
+
+          while IFS= read -r -d '' file; do
+            lower="${file,,}"
+
+            case "$lower" in
+              *.png|*.jpg|*.jpeg|*.gif|*.webp|*.bmp|*.svg|*.pdf)
+                ;;
+              *)
+                continue
+                ;;
+            esac
+
+            # Look for high-value embedded executable/archive signatures.
+            # These are indicators, not proof on their own.
+            if grep -aobE \
+                $'\x7fELF|\x4d\x5a|\x50\x4b\x03\x04|\x25PDF-' \
+                "$file" > /tmp/signatures.txt 2>/dev/null; then
+
+              while IFS=: read -r offset signature; do
+
+                case "$signature" in
+                  $'\x7fELF')
+                    echo "::error file=$file::Embedded ELF signature detected at offset $offset."
+                    violations=1
+                    ;;
+
+                  $'\x4d\x5a')
+                    echo "::error file=$file::Embedded PE/MZ signature detected at offset $offset."
+                    violations=1
+                    ;;
+
+                  $'\x50\x4b\x03\x04')
+                    # ZIP signatures inside PDFs/images are highly suspicious.
+                    echo "::warning file=$file::Embedded ZIP signature detected at offset $offset."
+                    ;;
+
+                  $'\x25PDF-')
+                    # A second PDF inside another document can indicate a polyglot.
+                    echo "::warning file=$file::Additional PDF signature detected at offset $offset."
+                    ;;
+                esac
+
+              done < /tmp/signatures.txt
+            fi
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -print0
+          )
+
+          if [ "$violations" -ne 0 ]; then
+            exit 1
+          fi
+
+  # ============================================================
+  # 12. Metadata inspection
+  # ============================================================
+
+  metadata-security:
+    name: Metadata and Embedded Data Inspection
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ExifTool
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y libimage-exiftool-perl
+
+      - name: Inspect media metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p security-report/metadata
+
+          while IFS= read -r -d '' file; do
+            lower="${file,,}"
+
+            case "$lower" in
+              *.png|*.jpg|*.jpeg|*.webp|*.gif|*.bmp|*.pdf|*.svg)
+                ;;
+              *)
+                continue
+                ;;
+            esac
+
+            output="security-report/metadata/$(printf '%s' "$file" \
+              | sha256sum \
+              | cut -d' ' -f1).txt"
+
+            echo "Metadata for: $file" > "$output"
+            exiftool \
+              -a \
+              -u \
+              -g1 \
+              "$file" >> "$output" || true
+
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              -print0
+          )
+
+      - name: Upload metadata report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: metadata-report
+          path: security-report/metadata/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ============================================================
+  # 13. GitHub Actions workflow security
+  # ============================================================
 
   zizmor:
     name: Zizmor
@@ -211,3 +1148,57 @@ jobs:
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
           advanced-security: false
+
+  # ============================================================
+  # 14. Repository integrity report
+  # ============================================================
+
+  hashes:
+    name: Artifact SHA-256 Inventory
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate artifact hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p security-report
+
+          : > security-report/SHA256SUMS
+
+          while IFS= read -r -d '' file; do
+            sha256sum "$file" >> security-report/SHA256SUMS
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -type f \
+              \( \
+                -iname '*.pdf' -o \
+                -iname '*.png' -o \
+                -iname '*.jpg' -o \
+                -iname '*.jpeg' -o \
+                -iname '*.webp' -o \
+                -iname '*.gif' -o \
+                -iname '*.bmp' -o \
+                -iname '*.svg' \
+              \) \
+              -print0
+          )
+
+          sort -o security-report/SHA256SUMS security-report/SHA256SUMS
+
+      - name: Upload hash inventory
+        uses: actions/upload-artifact@v6
+        with:
+          name: artifact-sha256
+          path: security-report/SHA256SUMS
+          retention-days: 30
