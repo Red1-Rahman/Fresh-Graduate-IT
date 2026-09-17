@@ -107,7 +107,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@0b93645e9e0d79c591ca3f47a0f4a2b9db68adf
+        uses: actions/setup-python@42371448472315c23ef76248239046a08538028d # v5.4.0
         with:
           python-version: "3.11"
 
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload validation results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: latex-validation-results
           path: /tmp/validation-results.json
@@ -404,7 +404,7 @@ jobs:
           echo "Validated $pdf_count PDF(s)."
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: latex-${{ matrix.os }}-${{ matrix.compiler }}
           path: build/
