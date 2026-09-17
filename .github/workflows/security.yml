@@ -93,7 +93,7 @@ jobs:
           mkdir -p "$CVD_DIR"
 
           python3 -m cvdupdate config set \
-            --dbs-directory "$CVD_DIR"
+            --dbdir "$CVD_DIR"
 
           echo "Updating ClamAV signature databases..."
 
