@@ -409,7 +409,8 @@ jobs:
               continue
             fi
 
-            # Produce a normalized object representation for inspection.
+            # Produce a normalized, decompressed object representation
+            # for inspection.
             tmp="$(mktemp --suffix=.pdf)"
 
             if ! qpdf \
@@ -423,13 +424,85 @@ jobs:
               continue
             fi
 
-            # Active or embedded content that is unnecessary for ordinary
-            # compiled academic/document PDFs is treated as unsafe.
-            if grep -aEiq \
-                '/JavaScript|/JS|/Launch|/EmbeddedFile|/Filespec|/RichMedia|/Rendition|/Sound|/Movie|/3D|/FileAttachment' \
-                "$tmp"; then
+            # Active content and embedded files are treated as unsafe
+            # for ordinary compiled academic/document PDFs, with one
+            # allowlisted exception: a C2PA Content Credentials
+            # manifest (https://c2pa.org/), a standard, non-executable
+            # provenance record that some PDF export/authoring tools
+            # attach automatically. Anything else embedded still fails.
+            if ! python3 - "$pdf" "$tmp" <<'PY'
+          import re
+          import sys
 
-              echo "::error file=$pdf::Potentially active or embedded PDF content detected."
+          pdf_path, tmp_path = sys.argv[1], sys.argv[2]
+
+          with open(tmp_path, "rb") as handle:
+              text = handle.read().decode("latin-1")
+
+          violations = []
+
+          # These have no legitimate purpose in an ordinary compiled
+          # academic/document PDF and are always rejected outright.
+          hard_fail_patterns = [
+              r"/JavaScript\b",
+              r"/JS\b",
+              r"/Launch\b",
+              r"/RichMedia\b",
+              r"/Rendition\b",
+              r"/Sound\b",
+              r"/Movie\b",
+              r"/3D\b",
+              r"/FileAttachment\b",
+          ]
+
+          for pattern in hard_fail_patterns:
+              if re.search(pattern, text):
+                  violations.append(f"disallowed key matching {pattern}")
+
+          has_embedded_marker = bool(
+              re.search(r"/EmbeddedFile\b", text)
+              or re.search(r"/Filespec\b", text, re.IGNORECASE)
+              or re.search(r"/Type\s*/FileSpec\b", text)
+          )
+
+          if has_embedded_marker:
+              object_pattern = re.compile(
+                  r"\n\d+ 0 obj\s*(<<.*?>>)\s*\nendobj",
+                  re.DOTALL,
+              )
+
+              filespecs = [
+                  match.group(1)
+                  for match in object_pattern.finditer(text)
+                  if re.search(r"/Type\s*/FileSpec\b", match.group(1))
+              ]
+
+              if not filespecs:
+                  violations.append(
+                      "embedded file reference found without an "
+                      "inspectable file specification object"
+                  )
+
+              for body in filespecs:
+                  is_c2pa_manifest = bool(
+                      re.search(r"/AFRelationship\s*/C2PA_Manifest\b", body)
+                      and re.search(
+                          r"/Subtype\s*\(application/c2pa\)", body
+                      )
+                  )
+
+                  if not is_c2pa_manifest:
+                      violations.append(
+                          "non-C2PA file specification or embedded file "
+                          "detected"
+                      )
+
+          if violations:
+              for violation in violations:
+                  print(f"::error file={pdf_path}::{violation}.")
+              sys.exit(1)
+          PY
+            then
               violations=1
             fi
 
@@ -770,7 +843,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ruby-full
 
-          gem install zsteg -v 0.2.14 --no-document
+          sudo gem install zsteg -v 0.2.14 --no-document
 
           zsteg --help >/dev/null
 
@@ -1012,37 +1085,68 @@ jobs:
                 ;;
             esac
 
-            # Look for high-value embedded executable/archive signatures.
-            # These are indicators, not proof on their own.
-            if grep -aobE \
-                $'\x7fELF|\x4d\x5a|\x50\x4b\x03\x04|\x25PDF-' \
-                "$file" > /tmp/signatures.txt 2>/dev/null; then
+            # ELF's 4-byte signature has a negligible false-positive
+            # rate, so any match is treated as a genuine embedded
+            # Unix/Linux executable. MZ is only 2 bytes and occurs by
+            # chance inside ordinary compressed streams (embedded
+            # fonts, FlateDecode content, JPEG/PNG data), so it is
+            # only treated as a genuine embedded Windows executable
+            # when a real PE header or the classic DOS stub string is
+            # also present nearby. A ZIP signature or a second
+            # %PDF- signature away from offset 0 remains a warning
+            # for manual review rather than a hard failure.
+            if ! python3 - "$file" <<'PY'
+          import re
+          import sys
 
-              while IFS=: read -r offset signature; do
+          path = sys.argv[1]
 
-                case "$signature" in
-                  $'\x7fELF')
-                    echo "::error file=$file::Embedded ELF signature detected at offset $offset."
-                    violations=1
-                    ;;
+          with open(path, "rb") as handle:
+              data = handle.read()
 
-                  $'\x4d\x5a')
-                    echo "::error file=$file::Embedded PE/MZ signature detected at offset $offset."
-                    violations=1
-                    ;;
+          violations = []
+          warnings = []
 
-                  $'\x50\x4b\x03\x04')
-                    # ZIP signatures inside PDFs/images are highly suspicious.
-                    echo "::warning file=$file::Embedded ZIP signature detected at offset $offset."
-                    ;;
+          for match in re.finditer(rb"\x7fELF", data):
+              violations.append(
+                  f"embedded ELF signature at offset {match.start()}"
+              )
 
-                  $'\x25PDF-')
-                    # A second PDF inside another document can indicate a polyglot.
-                    echo "::warning file=$file::Additional PDF signature detected at offset $offset."
-                    ;;
-                esac
+          for match in re.finditer(rb"MZ", data):
+              offset = match.start()
+              window = data[offset:offset + 1024]
 
-              done < /tmp/signatures.txt
+              looks_like_pe = (
+                  b"PE\x00\x00" in window
+                  or b"This program cannot be run in DOS mode" in window
+              )
+
+              if looks_like_pe:
+                  violations.append(
+                      f"embedded PE/MZ executable at offset {offset}"
+                  )
+
+          for match in re.finditer(rb"PK\x03\x04", data):
+              warnings.append(
+                  f"embedded ZIP signature at offset {match.start()}"
+              )
+
+          for match in re.finditer(rb"%PDF-", data):
+              if match.start() != 0:
+                  warnings.append(
+                      f"additional PDF signature at offset {match.start()}"
+                  )
+
+          for warning in warnings:
+              print(f"::warning file={path}::{warning}.")
+
+          if violations:
+              for violation in violations:
+                  print(f"::error file={path}::{violation}.")
+              sys.exit(1)
+          PY
+            then
+              violations=1
             fi
 
           done < <(
