@@ -1,0 +1,6 @@
+{
+  "min_chapters": 5,
+  "max_line_length": 100,
+  "require_toc": true,
+  "require_bibliography": true
+}
